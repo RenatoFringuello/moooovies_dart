@@ -7,6 +7,11 @@ import 'package:url_launcher/url_launcher.dart';
 import '../models/movies.dart';
 import '../services/database_service.dart';
 import '../utils/tmdb_genres.dart';
+import '../widgets/info_chip.dart';
+import '../widgets/section_title.dart';
+import '../widgets/trailer_card.dart';
+import '../widgets/actor_card.dart';
+import '../widgets/crew_card.dart';
 import 'player_screen.dart';
 
 class MovieDetailScreen extends StatefulWidget {
@@ -25,7 +30,6 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
   bool _isFavorite = false;
   bool _loadingFavorite = true;
 
-  // Dati aggiuntivi TMDB
   Map<String, dynamic>? _details;
   List<dynamic> _cast = [];
   List<dynamic> _crew = [];
@@ -60,7 +64,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
   Future<void> _loadExtraDetails() async {
     try {
       final id = widget.movie.id;
-      final lang = 'it-IT';
+      const lang = 'it-IT';
 
       final results = await Future.wait([
         http.get(Uri.parse('$_baseUrl/3/movie/$id?api_key=$_apiKey&language=$lang')),
@@ -74,7 +78,6 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
       final videos = json.decode(results[2].body);
       final images = json.decode(results[3].body);
 
-      // Se non ci sono trailer in italiano, cerca in inglese
       List<dynamic> trailers = (videos['results'] as List)
           .where((v) => v['type'] == 'Trailer' && v['site'] == 'YouTube')
           .toList();
@@ -182,7 +185,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // ── TITOLO ──────────────────────
+                      // ── TITOLO ──────────────────────────────────────
                       Text(movie.title,
                           style: const TextStyle(
                               color: Colors.white,
@@ -199,39 +202,35 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
 
                       const SizedBox(height: 12),
 
-                      // ── METADATI ────────────────────
+                      // ── METADATI ────────────────────────────────────
                       Wrap(
                         spacing: 16,
                         runSpacing: 8,
                         children: [
                           if (movie.year.isNotEmpty)
-                            _InfoChip(
+                            InfoChip(
                                 icon: Icons.calendar_today,
                                 label: movie.year),
                           if (movie.voteAverage > 0)
-                            _InfoChip(
+                            InfoChip(
                                 icon: Icons.star,
-                                label:
-                                    '${movie.rating} (${movie.voteCount})',
+                                label: '${movie.rating} (${movie.voteCount})',
                                 color: Colors.amber),
                           if (movie.originalLanguage.isNotEmpty)
-                            _InfoChip(
+                            InfoChip(
                                 icon: Icons.language,
-                                label: movie.originalLanguage
-                                    .toUpperCase()),
-                          // Durata dai dettagli
+                                label: movie.originalLanguage.toUpperCase()),
                           if (_details?['runtime'] != null &&
                               _details!['runtime'] > 0)
-                            _InfoChip(
+                            InfoChip(
                                 icon: Icons.timer,
-                                label:
-                                    '${_details!['runtime']} min'),
+                                label: '${_details!['runtime']} min'),
                         ],
                       ),
 
                       const SizedBox(height: 12),
 
-                      // ── GENERI ──────────────────────
+                      // ── GENERI ──────────────────────────────────────
                       if (genres.isNotEmpty)
                         Wrap(
                           spacing: 8,
@@ -241,10 +240,8 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                                     padding: const EdgeInsets.symmetric(
                                         horizontal: 10, vertical: 4),
                                     decoration: BoxDecoration(
-                                      border: Border.all(
-                                          color: Colors.white30),
-                                      borderRadius:
-                                          BorderRadius.circular(20),
+                                      border: Border.all(color: Colors.white30),
+                                      borderRadius: BorderRadius.circular(20),
                                     ),
                                     child: Text(g,
                                         style: const TextStyle(
@@ -256,28 +253,33 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
 
                       const SizedBox(height: 20),
 
-                      // ── BOTTONE PLAY ────────────────────────────────────
-                      if (movie.localPath != null && movie.localPath!.isNotEmpty)
+                      // ── BOTTONE PLAY ────────────────────────────────
+                      if (movie.localPath != null &&
+                          movie.localPath!.isNotEmpty)
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton.icon(
                             onPressed: () => Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (_) => PlayerScreen(movie: movie)),
+                              MaterialPageRoute(
+                                  builder: (_) => PlayerScreen(movie: movie)),
                             ),
-                            icon: const Icon(Icons.play_arrow, color: Colors.black),
+                            icon: const Icon(Icons.play_arrow,
+                                color: Colors.black),
                             label: const Text('Play',
-                                style: TextStyle(color: Colors.black, fontSize: 16)),
+                                style: TextStyle(
+                                    color: Colors.black, fontSize: 16)),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 14),
                             ),
                           ),
                         ),
 
                       const SizedBox(height: 20),
 
-                      // ── TRAMA ───────────────────────
+                      // ── TRAMA ───────────────────────────────────────
                       if (movie.overview != null &&
                           movie.overview!.isNotEmpty) ...[
                         const Text('Trama',
@@ -299,61 +301,34 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                 if (_loadingExtra)
                   const Padding(
                     padding: EdgeInsets.all(32),
-                    child:
-                        Center(child: CircularProgressIndicator()),
+                    child: Center(child: CircularProgressIndicator()),
                   )
                 else ...[
-                  // ── TRAILER ─────────────────────────
+                  // ── TRAILER ─────────────────────────────────────────
                   if (_trailers.isNotEmpty) ...[
-                    _SectionTitle('Trailer'),
+                    SectionTitle('Trailer'),
                     SizedBox(
                       height: 100,
                       child: ListView.builder(
                         scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16),
+                        padding:
+                            const EdgeInsets.symmetric(horizontal: 16),
                         itemCount: _trailers.length,
                         itemBuilder: (_, i) {
                           final trailer = _trailers[i];
-                          return GestureDetector(
-                            onTap: () =>
-                                _openTrailer(trailer['key']),
-                            child: Container(
-                              width: 160,
-                              margin:
-                                  const EdgeInsets.only(right: 10),
-                              decoration: BoxDecoration(
-                                borderRadius:
-                                    BorderRadius.circular(10),
-                                image: DecorationImage(
-                                  image: NetworkImage(
-                                      'https://img.youtube.com/vi/${trailer['key']}/hqdefault.jpg'),
-                                  fit: BoxFit.cover,
-                                ),
-                              ),
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  borderRadius:
-                                      BorderRadius.circular(10),
-                                  color: Colors.black45,
-                                ),
-                                child: const Center(
-                                  child: Icon(
-                                      Icons.play_circle_fill,
-                                      color: Colors.white,
-                                      size: 40),
-                                ),
-                              ),
-                            ),
+                          return TrailerCard(
+                            youtubeKey: trailer['key'],
+                            title: trailer['name'] ?? '',
+                            onTap: () => _openTrailer(trailer['key']),
                           );
                         },
                       ),
                     ),
                   ],
 
-                  // ── FOTO ────────────────────────────
+                  // ── FOTO ────────────────────────────────────────────
                   if (_backdrops.isNotEmpty) ...[
-                    _SectionTitle('Foto'),
+                    SectionTitle('Foto'),
                     CarouselSlider(
                       options: CarouselOptions(
                         height: 200,
@@ -374,123 +349,42 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                     ),
                   ],
 
-                  // ── CAST ────────────────────────────
+                  // ── CAST ────────────────────────────────────────────
                   if (_cast.isNotEmpty) ...[
-                    _SectionTitle('Cast'),
+                    SectionTitle('Cast'),
                     SizedBox(
                       height: 160,
                       child: ListView.builder(
                         scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16),
+                        padding:
+                            const EdgeInsets.symmetric(horizontal: 16),
                         itemCount: _cast.length,
                         itemBuilder: (_, i) {
                           final actor = _cast[i];
-                          return Container(
-                            width: 90,
-                            margin:
-                                const EdgeInsets.only(right: 12),
-                            child: Column(
-                              children: [
-                                ClipRRect(
-                                  borderRadius:
-                                      BorderRadius.circular(50),
-                                  child: actor['profile_path'] !=
-                                          null
-                                      ? Image.network(
-                                          'https://image.tmdb.org/t/p/w185${actor['profile_path']}',
-                                          width: 70,
-                                          height: 70,
-                                          fit: BoxFit.cover,
-                                        )
-                                      : Container(
-                                          width: 70,
-                                          height: 70,
-                                          color: Colors.grey[800],
-                                          child: const Icon(
-                                              Icons.person,
-                                              color: Colors.white54),
-                                        ),
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  actor['name'] ?? '',
-                                  textAlign: TextAlign.center,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w500),
-                                ),
-                                Text(
-                                  actor['character'] ?? '',
-                                  textAlign: TextAlign.center,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                      color: Colors.white54,
-                                      fontSize: 10),
-                                ),
-                              ],
-                            ),
+                          return ActorCard(
+                            name: actor['name'] ?? '',
+                            character: actor['character'] ?? '',
+                            profilePath: actor['profile_path'],
                           );
                         },
                       ),
                     ),
                   ],
 
-                  // ── CREW ────────────────────────────
+                  // ── CREW ────────────────────────────────────────────
                   if (_crew.isNotEmpty) ...[
-                    _SectionTitle('Crew'),
+                    SectionTitle('Crew'),
                     Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16),
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 16),
                       child: Wrap(
                         spacing: 16,
                         runSpacing: 12,
                         children: _crew.map((c) {
-                          return Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              ClipRRect(
-                                borderRadius:
-                                    BorderRadius.circular(20),
-                                child: c['profile_path'] != null
-                                    ? Image.network(
-                                        'https://image.tmdb.org/t/p/w185${c['profile_path']}',
-                                        width: 40,
-                                        height: 40,
-                                        fit: BoxFit.cover,
-                                      )
-                                    : Container(
-                                        width: 40,
-                                        height: 40,
-                                        color: Colors.grey[800],
-                                        child: const Icon(
-                                            Icons.person,
-                                            color: Colors.white54,
-                                            size: 20),
-                                      ),
-                              ),
-                              const SizedBox(width: 8),
-                              Column(
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.start,
-                                children: [
-                                  Text(c['name'] ?? '',
-                                      style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 13,
-                                          fontWeight:
-                                              FontWeight.w500)),
-                                  Text(c['job'] ?? '',
-                                      style: const TextStyle(
-                                          color: Colors.white54,
-                                          fontSize: 11)),
-                                ],
-                              ),
-                            ],
+                          return CrewCard(
+                            name: c['name'] ?? '',
+                            job: c['job'] ?? '',
+                            profilePath: c['profile_path'],
                           );
                         }).toList(),
                       ),
@@ -504,49 +398,6 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
           ),
         ],
       ),
-    );
-  }
-}
-
-// ── WIDGETS HELPER ────────────────────────────────────
-
-class _SectionTitle extends StatelessWidget {
-  final String title;
-  const _SectionTitle(this.title);
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
-      child: Text(title,
-          style: const TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold)),
-    );
-  }
-}
-
-class _InfoChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-
-  const _InfoChip({
-    required this.icon,
-    required this.label,
-    this.color = Colors.white70,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, color: color, size: 14),
-        const SizedBox(width: 4),
-        Text(label, style: TextStyle(color: color, fontSize: 13)),
-      ],
     );
   }
 }

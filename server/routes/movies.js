@@ -78,7 +78,7 @@ async function scanFilms() {
       original_language: tmdb?.original_language ?? '',
       genre_ids: tmdb?.genre_ids ?? [],
       popularity: tmdb?.popularity ?? 0,
-      localPath: path.join(FILMS_DIR, file),
+      local_path: path.join(FILMS_DIR, file),
     });
   }
 

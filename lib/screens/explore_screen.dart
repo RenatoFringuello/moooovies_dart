@@ -7,6 +7,7 @@ import '../models/movies.dart';
 import 'movie_detail_screen.dart';
 import '../utils/tmdb_genres.dart';
 import '../config/api_config.dart';
+import '../widgets/movie_grid.dart';
 
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
@@ -285,118 +286,20 @@ class _ExploreScreenState extends State<ExploreScreen> {
     if (_loading && _movies.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
-
     if (_movies.isEmpty) {
       return const Center(
         child: Text('Nessun film trovato',
             style: TextStyle(color: Colors.white54)),
       );
     }
-
-    return GridView.builder(
-      controller: _scrollController,
-      padding: const EdgeInsets.all(10),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 0.65,
-        crossAxisSpacing: 10,
-        mainAxisSpacing: 10,
+    return MovieGrid(
+      movies: _movies,
+      onTap: (movie) => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => MovieDetailScreen(movie: movie)),
       ),
-      itemCount: _movies.length + (_hasMore ? 2 : 0),
-      itemBuilder: (_, index) {
-        // Loading indicator in fondo
-        if (index >= _movies.length) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: CircularProgressIndicator(),
-            ),
-          );
-        }
-
-        final movie = _movies[index];
-        return GestureDetector(
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-                builder: (_) => MovieDetailScreen(movie: movie)),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                movie.posterPath.isNotEmpty
-                    ? Image.network(
-                        'https://image.tmdb.org/t/p/w500${movie.posterPath}',
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
-                          color: Colors.grey[800],
-                          child: const Icon(Icons.movie,
-                              color: Colors.white54, size: 40),
-                        ),
-                      )
-                    : Container(
-                        color: Colors.grey[800],
-                        child: const Icon(Icons.movie,
-                            color: Colors.white54, size: 40),
-                      ),
-                Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.bottomCenter,
-                      end: Alignment.center,
-                      colors: [Colors.black87, Colors.transparent],
-                    ),
-                  ),
-                ),
-                Positioned(
-                  bottom: 8,
-                  left: 8,
-                  right: 8,
-                  child: Text(
-                    movie.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-                // Voto in alto a destra
-                if (movie.voteAverage > 0)
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: Colors.black54,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.star,
-                              color: Colors.amber, size: 12),
-                          const SizedBox(width: 3),
-                          Text(
-                            movie.rating,
-                            style: const TextStyle(
-                                color: Colors.white, fontSize: 11),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        );
-      },
+      hasMore: _hasMore,
+      scrollController: _scrollController,
     );
   }
 }

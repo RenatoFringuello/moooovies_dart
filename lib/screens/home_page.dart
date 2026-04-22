@@ -7,6 +7,8 @@ import '../services/database_service.dart';
 import 'movie_detail_screen.dart';
 import '../widgets/continue_watching_row.dart';
 import '../widgets/favorites_row.dart';
+import '../widgets/movie_card.dart';
+import '../widgets/movie_grid.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key, required this.title});
@@ -80,76 +82,41 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildMovieCard(Movies movie) {
-    final isFav = _favoriteIds.contains(movie.id);
-
-    return GestureDetector(
-      onTap: () async {
-        await Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => MovieDetailScreen(movie: movie)),
-        );
-        _onReturn();
-      },
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            Image.network(
-              'https://image.tmdb.org/t/p/w500${movie.posterPath}',
-              fit: BoxFit.cover,
-            ),
-            Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.bottomCenter,
-                  end: Alignment.center,
-                  colors: [Colors.black87, Colors.transparent],
-                ),
-              ),
-            ),
-            // Icona preferito
-            Positioned(
-              top: 8,
-              right: 8,
-              child: GestureDetector(
-                onTap: () async {
-                  if (isFav) {
-                    await _userService.removeFavorite(movie.id);
-                  } else {
-                    await _userService.addFavorite(movie.id);
-                  }
-                  _loadAll();
-                },
-                child: Icon(
-                  isFav ? Icons.favorite : Icons.favorite_border,
-                  color: isFav ? Colors.red : Colors.white,
-                  size: 24,
-                ),
-              ),
-            ),
-            Positioned(
-              bottom: 8,
-              left: 8,
-              right: 8,
-              child: Text(
-                movie.title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
+  Widget _buildAllMovies() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.fromLTRB(12, 16, 12, 8),
+          child: Text('Tutti i film',
+              style: TextStyle(
                   color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
-              ),
-            ),
-          ],
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold)),
         ),
-      ),
+        MovieGrid(
+          movies: _allMovies,
+          favoriteIds: _favoriteIds.toSet(),
+          shrinkWrap: true,
+          onTap: (movie) async {
+            await Navigator.push(context,
+                MaterialPageRoute(
+                    builder: (_) => MovieDetailScreen(movie: movie)));
+            _onReturn();
+          },
+          onToggleFavorite: (movie) async {
+            if (_favoriteIds.contains(movie.id)) {
+              await _userService.removeFavorite(movie.id);
+            } else {
+              await _userService.addFavorite(movie.id);
+            }
+            _loadAll();
+          },
+        ),
+      ],
     );
   }
-
+  
   Widget _buildContinueWatching() {
     final inProgress = _continueWatching
         .map((p) => _allMovies.firstWhere(
@@ -190,35 +157,6 @@ class _HomePageState extends State<HomePage> {
         await _userService.removeFavorite(movie.id);
         _loadAll();
       },
-    );
-  }
-
-  Widget _buildAllMovies() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Padding(
-          padding: EdgeInsets.fromLTRB(12, 16, 12, 8),
-          child: Text('Tutti i film',
-              style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold)),
-        ),
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            childAspectRatio: 0.65,
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 10,
-          ),
-          itemCount: _allMovies.length,
-          itemBuilder: (_, index) => _buildMovieCard(_allMovies[index]),
-        ),
-      ],
     );
   }
 
