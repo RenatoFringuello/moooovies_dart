@@ -14,11 +14,11 @@ class WatchProgress {
   double get percentage => durationMs > 0 ? positionMs / durationMs : 0;
 
   factory WatchProgress.fromJson(Map<String, dynamic> json) {
-  return WatchProgress(
-    movieId: int.parse(json['movie_id'].toString()),
-    positionMs: int.parse(json['position_ms'].toString()),
-    durationMs: int.parse(json['duration_ms'].toString()),
-    lastWatched: json['last_watched'] ?? '',
-  );
-}
+    return WatchProgress(
+      movieId: int.parse((json['movie_id'] ?? 0).toString()),
+      positionMs: int.parse((json['position_ms'] ?? 0).toString()),
+      durationMs: int.parse((json['duration_ms'] ?? 0).toString()),
+      lastWatched: json['last_watched']?.toString() ?? '',
+    );
+  }
 }

@@ -256,28 +256,24 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
 
                       const SizedBox(height: 20),
 
-                      // ── BOTTONE PLAY ────────────────
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) =>
-                                    PlayerScreen(movie: movie)),
-                          ),
-                          icon: const Icon(Icons.play_arrow,
-                              color: Colors.black),
-                          label: const Text('Play',
-                              style: TextStyle(
-                                  color: Colors.black, fontSize: 16)),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                                vertical: 14),
+                      // ── BOTTONE PLAY ────────────────────────────────────
+                      if (movie.localPath != null && movie.localPath!.isNotEmpty)
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => PlayerScreen(movie: movie)),
+                            ),
+                            icon: const Icon(Icons.play_arrow, color: Colors.black),
+                            label: const Text('Play',
+                                style: TextStyle(color: Colors.black, fontSize: 16)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
                           ),
                         ),
-                      ),
 
                       const SizedBox(height: 20),
 
