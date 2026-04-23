@@ -7,8 +7,8 @@ import '../services/database_service.dart';
 import 'movie_detail_screen.dart';
 import '../widgets/continue_watching_row.dart';
 import '../widgets/favorites_row.dart';
-import '../widgets/movie_card.dart';
 import '../widgets/movie_grid.dart';
+import '../widgets/movie_filters.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key, required this.title});
@@ -25,6 +25,9 @@ class _HomePageState extends State<HomePage> {
   List<Movies> _allMovies = [];
   List<WatchProgress> _continueWatching = [];
   List<int> _favoriteIds = [];
+  String _searchQuery = '';
+  int? _selectedGenreId;
+  final TextEditingController _searchController = TextEditingController();
   bool _loading = true;
   bool _hasError = false;
 
@@ -32,6 +35,12 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _loadAll();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadAll() async {
@@ -48,7 +57,7 @@ class _HomePageState extends State<HomePage> {
         _loading = false;
       });
     } catch (e) {
-      print('Errore _loadAll: $e');  // ← aggiungi questa riga
+      print('Errore _loadAll: $e');
       setState(() {
         _hasError = true;
         _loading = false;
@@ -56,8 +65,40 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  // Ricarica dopo essere tornati dal player o dal dettaglio
   void _onReturn() => _loadAll();
+
+  // Rileva se la query è un anno (4 cifre)
+  bool get _queryIsYear =>
+      RegExp(r'^\d{4}$').hasMatch(_searchQuery.trim());
+
+  List<Movies> get _getFilteredMovies {
+    final query = _searchQuery.trim().toLowerCase();
+
+    return _allMovies.where((movie) {
+      // Filtro genere
+      final matchesGenre = _selectedGenreId == null ||
+          movie.genreIds.contains(_selectedGenreId);
+
+      // Filtro ricerca
+      bool matchesSearch = true;
+      if (query.isNotEmpty) {
+        if (_queryIsYear) {
+          // Cerca per anno
+          matchesSearch = movie.year == _searchQuery.trim();
+        } else {
+          // Cerca per titolo o titolo originale
+          matchesSearch =
+              movie.title.toLowerCase().contains(query) ||
+              movie.originalTitle.toLowerCase().contains(query);
+        }
+      }
+
+      return matchesGenre && matchesSearch;
+    }).toList();
+  }
+
+  bool get _hasActiveFilters =>
+      _searchQuery.isNotEmpty || _selectedGenreId != null;
 
   Widget _buildShimmer() {
     return GridView.builder(
@@ -82,41 +123,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildAllMovies() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Padding(
-          padding: EdgeInsets.fromLTRB(12, 16, 12, 8),
-          child: Text('Tutti i film',
-              style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold)),
-        ),
-        MovieGrid(
-          movies: _allMovies,
-          favoriteIds: _favoriteIds.toSet(),
-          shrinkWrap: true,
-          onTap: (movie) async {
-            await Navigator.push(context,
-                MaterialPageRoute(
-                    builder: (_) => MovieDetailScreen(movie: movie)));
-            _onReturn();
-          },
-          onToggleFavorite: (movie) async {
-            if (_favoriteIds.contains(movie.id)) {
-              await _userService.removeFavorite(movie.id);
-            } else {
-              await _userService.addFavorite(movie.id);
-            }
-            _loadAll();
-          },
-        ),
-      ],
-    );
-  }
-  
   Widget _buildContinueWatching() {
     final inProgress = _continueWatching
         .map((p) => _allMovies.firstWhere(
@@ -131,10 +137,11 @@ class _HomePageState extends State<HomePage> {
       progressList: _continueWatching,
       onTap: (movie) async {
         await Navigator.push(context,
-            MaterialPageRoute(builder: (_) => MovieDetailScreen(movie: movie)));
+            MaterialPageRoute(
+                builder: (_) => MovieDetailScreen(movie: movie)));
         _onReturn();
       },
-      onDelete: (movie) async {  // ← aggiungi
+      onDelete: (movie) async {
         await _userService.deleteProgress(movie.id);
         _loadAll();
       },
@@ -142,21 +149,71 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildFavorites() {
-    final favorites = _allMovies
-        .where((m) => _favoriteIds.contains(m.id))
-        .toList();
+    final favorites =
+        _allMovies.where((m) => _favoriteIds.contains(m.id)).toList();
 
     return FavoritesRow(
       movies: favorites,
       onTap: (movie) async {
         await Navigator.push(context,
-            MaterialPageRoute(builder: (_) => MovieDetailScreen(movie: movie)));
+            MaterialPageRoute(
+                builder: (_) => MovieDetailScreen(movie: movie)));
         _onReturn();
       },
-      onToggleFavorite: (movie) async {  // ← aggiungi
+      onToggleFavorite: (movie) async {
         await _userService.removeFavorite(movie.id);
         _loadAll();
       },
+    );
+  }
+
+  Widget _buildAllMovies() {
+    final movies = _hasActiveFilters ? _getFilteredMovies : _allMovies;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 16, 12, 8),
+          child: Text(
+            _hasActiveFilters
+                ? 'Risultati (${movies.length})'
+                : 'Tutti i film',
+            style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold),
+          ),
+        ),
+        if (movies.isEmpty)
+          const Padding(
+            padding: EdgeInsets.all(32),
+            child: Center(
+              child: Text('Nessun film trovato',
+                  style: TextStyle(color: Colors.white54)),
+            ),
+          )
+        else
+          MovieGrid(
+            movies: movies,
+            favoriteIds: _favoriteIds.toSet(),
+            shrinkWrap: true,
+            onTap: (movie) async {
+              await Navigator.push(context,
+                  MaterialPageRoute(
+                      builder: (_) => MovieDetailScreen(movie: movie)));
+              _onReturn();
+            },
+            onToggleFavorite: (movie) async {
+              if (_favoriteIds.contains(movie.id)) {
+                await _userService.removeFavorite(movie.id);
+              } else {
+                await _userService.addFavorite(movie.id);
+              }
+              _loadAll();
+            },
+          ),
+      ],
     );
   }
 
@@ -166,11 +223,11 @@ class _HomePageState extends State<HomePage> {
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.black,
-        title: Text(widget.title, style: TextStyle(
-          color: Colors.white, 
-          fontWeight: FontWeight.bold
-          )
-        )
+        title: Text(
+          widget.title,
+          style: const TextStyle(
+              color: Colors.white, fontWeight: FontWeight.bold),
+        ),
       ),
       body: _loading
           ? _buildShimmer()
@@ -178,15 +235,31 @@ class _HomePageState extends State<HomePage> {
               ? const Center(
                   child: Text('Errore durante il caricamento',
                       style: TextStyle(color: Colors.white)))
-              : SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildContinueWatching(),
-                      _buildFavorites(),
-                      _buildAllMovies(),
-                    ],
-                  ),
+              : Column(
+                  children: [
+                    MovieFilters(
+                      searchController: _searchController,
+                      selectedGenreId: _selectedGenreId,
+                      onSearchChanged: (val) =>
+                          setState(() => _searchQuery = val),
+                      onGenreChanged: (val) =>
+                          setState(() => _selectedGenreId = val),
+                    ),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (!_hasActiveFilters) ...[
+                              _buildContinueWatching(),
+                              _buildFavorites(),
+                            ],
+                            _buildAllMovies(),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
     );
   }
