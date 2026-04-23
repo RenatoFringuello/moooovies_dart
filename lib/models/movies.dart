@@ -11,6 +11,8 @@ class Movies {
   final int voteCount;
   final String originalLanguage;
   final List<int> genreIds;
+  final List<String> castNames;
+  final List<String> crewNames;
 
   Movies({
     required this.id,
@@ -25,12 +27,12 @@ class Movies {
     this.voteCount = 0,
     this.originalLanguage = '',
     this.genreIds = const [],
+    this.castNames = const [],
+    this.crewNames = const [],
   });
 
-  // Anno estratto da release_date
-  String get year => releaseDate.isNotEmpty ? releaseDate.substring(0, 4) : '';
-
-  // Voto formattato
+  String get year =>
+      releaseDate.isNotEmpty ? releaseDate.substring(0, 4) : '';
   String get rating => voteAverage.toStringAsFixed(1);
 
   factory Movies.fromJson(Map<String, dynamic> json) {
@@ -41,12 +43,14 @@ class Movies {
       posterPath: json['poster_path'] ?? '',
       backdropPath: json['backdrop_path'] ?? '',
       overview: json['overview'] ?? '',
-      localPath: json['local_path'] ?? '',
+      localPath: json['localPath'] ?? json['local_path'] ?? '',
       releaseDate: json['release_date'] ?? '',
       voteAverage: (json['vote_average'] ?? 0).toDouble(),
       voteCount: json['vote_count'] ?? 0,
       originalLanguage: json['original_language'] ?? '',
       genreIds: List<int>.from(json['genre_ids'] ?? []),
+      castNames: List<String>.from(json['cast_names'] ?? []),
+      crewNames: List<String>.from(json['crew_names'] ?? []),
     );
   }
 }

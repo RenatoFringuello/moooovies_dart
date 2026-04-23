@@ -4,6 +4,7 @@ import '../utils/tmdb_genres.dart';
 class MovieFilters extends StatefulWidget {
   final TextEditingController searchController;
   final int? selectedGenreId;
+  final String? searchHint;
   final Function(String) onSearchChanged;
   final Function(int?) onGenreChanged;
 
@@ -13,6 +14,7 @@ class MovieFilters extends StatefulWidget {
     required this.selectedGenreId,
     required this.onSearchChanged,
     required this.onGenreChanged,
+    this.searchHint,
   });
 
   @override
@@ -47,18 +49,20 @@ class _MovieFiltersState extends State<MovieFilters> {
             controller: widget.searchController,
             style: const TextStyle(color: Colors.white, fontSize: 14),
             decoration: InputDecoration(
-              hintText: 'Cerca per titolo, attore, regista, anno...',
-              hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
+              hintText: widget.searchHint ??
+                  'Cerca per titolo, attore, regista, anno...',
+              hintStyle:
+                  const TextStyle(color: Colors.white38, fontSize: 13),
               filled: true,
               fillColor: Colors.grey[800],
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12, vertical: 10),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
                 borderSide: BorderSide.none,
               ),
-              prefixIcon:
-                  const Icon(Icons.search, color: Colors.white54, size: 20),
+              prefixIcon: const Icon(Icons.search,
+                  color: Colors.white54, size: 20),
               suffixIcon: widget.searchController.text.isNotEmpty
                   ? GestureDetector(
                       onTap: () {
@@ -84,7 +88,8 @@ class _MovieFiltersState extends State<MovieFilters> {
             value: widget.selectedGenreId,
             dropdownColor: Colors.grey[900],
             isExpanded: true,
-            style: const TextStyle(color: Colors.white, fontSize: 13),
+            style:
+                const TextStyle(color: Colors.white, fontSize: 13),
             decoration: _inputDecoration(''),
             items: [
               const DropdownMenuItem(

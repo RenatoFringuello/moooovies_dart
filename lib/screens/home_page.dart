@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 import '../models/movies.dart';
@@ -9,6 +10,7 @@ import '../widgets/continue_watching_row.dart';
 import '../widgets/favorites_row.dart';
 import '../widgets/movie_grid.dart';
 import '../widgets/movie_filters.dart';
+import '../widgets/suggested_row.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key, required this.title});
@@ -23,6 +25,7 @@ class _HomePageState extends State<HomePage> {
   final DatabaseService _userService = DatabaseService();
 
   List<Movies> _allMovies = [];
+  List<Movies> _suggested = [];
   List<WatchProgress> _continueWatching = [];
   List<int> _favoriteIds = [];
   String _searchQuery = '';
@@ -50,12 +53,14 @@ class _HomePageState extends State<HomePage> {
         _userService.getContinueWatching(),
         _userService.getFavoriteIds(),
       ]);
+      final movies = results[0] as List<Movies>;
       setState(() {
-        _allMovies = results[0] as List<Movies>;
+        _allMovies = movies;
         _continueWatching = results[1] as List<WatchProgress>;
         _favoriteIds = results[2] as List<int>;
         _loading = false;
       });
+      _refreshSuggested(movies);
     } catch (e) {
       print('Errore _loadAll: $e');
       setState(() {
@@ -65,9 +70,16 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  void _refreshSuggested(List<Movies> movies) {
+    final rated = movies.where((m) => m.voteAverage > 5).toList();
+    rated.shuffle(Random());
+    setState(() {
+      _suggested = rated.take(20).toList();
+    });
+  }
+
   void _onReturn() => _loadAll();
 
-  // Rileva se la query è un anno (4 cifre)
   bool get _queryIsYear =>
       RegExp(r'^\d{4}$').hasMatch(_searchQuery.trim());
 
@@ -75,21 +87,19 @@ class _HomePageState extends State<HomePage> {
     final query = _searchQuery.trim().toLowerCase();
 
     return _allMovies.where((movie) {
-      // Filtro genere
       final matchesGenre = _selectedGenreId == null ||
           movie.genreIds.contains(_selectedGenreId);
 
-      // Filtro ricerca
       bool matchesSearch = true;
       if (query.isNotEmpty) {
         if (_queryIsYear) {
-          // Cerca per anno
           matchesSearch = movie.year == _searchQuery.trim();
         } else {
-          // Cerca per titolo o titolo originale
           matchesSearch =
               movie.title.toLowerCase().contains(query) ||
-              movie.originalTitle.toLowerCase().contains(query);
+              movie.originalTitle.toLowerCase().contains(query) ||
+              movie.castNames.any((n) => n.contains(query)) ||
+              movie.crewNames.any((n) => n.contains(query));
         }
       }
 
@@ -240,6 +250,7 @@ class _HomePageState extends State<HomePage> {
                     MovieFilters(
                       searchController: _searchController,
                       selectedGenreId: _selectedGenreId,
+                      searchHint: 'Cerca per titolo, attore, regista, anno...',
                       onSearchChanged: (val) =>
                           setState(() => _searchQuery = val),
                       onGenreChanged: (val) =>
@@ -253,6 +264,16 @@ class _HomePageState extends State<HomePage> {
                             if (!_hasActiveFilters) ...[
                               _buildContinueWatching(),
                               _buildFavorites(),
+                              SuggestedRow(
+                                movies: _suggested,
+                                onTap: (movie) async {
+                                  await Navigator.push(context,
+                                      MaterialPageRoute(
+                                          builder: (_) =>
+                                              MovieDetailScreen(movie: movie)));
+                                  _onReturn();
+                                },
+                              ),
                             ],
                             _buildAllMovies(),
                           ],

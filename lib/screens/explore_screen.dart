@@ -1,6 +1,7 @@
-import 'package:flutter/material.dart';
 import 'dart:convert';
+import 'dart:math';
 import 'dart:async';
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../models/movies.dart';
@@ -8,6 +9,7 @@ import 'movie_detail_screen.dart';
 import '../config/api_config.dart';
 import '../widgets/movie_grid.dart';
 import '../widgets/movie_filters.dart';
+import '../widgets/suggested_row.dart';
 
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
@@ -25,22 +27,26 @@ class _ExploreScreenState extends State<ExploreScreen> {
   Timer? _debounce;
 
   List<Movies> _movies = [];
+  List<Movies> _suggested = [];
   Set<int> _localMovieIds = {};
   bool _loading = false;
+  bool _loadingSuggested = false;
   bool _hasMore = true;
   int _currentPage = 1;
   final ScrollController _scrollController = ScrollController();
 
-  // Tiene traccia del tipo di ricerca attiva
-  // 'title' | 'year' | 'person' | 'discover'
+  // 'discover' | 'title' | 'year' | 'person'
   String _searchMode = 'discover';
-  int? _personId; // ID persona trovata su TMDB
-  String? _personDepartment; // 'Acting' o 'Directing'
+  int? _personId;
+  String? _personDepartment;
 
   @override
   void initState() {
     super.initState();
-    _loadLocalIds().then((_) => _fetchMovies(reset: true));
+    _loadLocalIds().then((_) {
+      _fetchMovies(reset: true);
+      _loadSuggested();
+    });
     _scrollController.addListener(_onScroll);
   }
 
@@ -75,15 +81,52 @@ class _ExploreScreenState extends State<ExploreScreen> {
     }
   }
 
+  Future<void> _loadSuggested() async {
+    setState(() => _loadingSuggested = true);
+    try {
+      final futures = [1, 2, 3].map((page) => http.get(Uri.parse(
+          '$_baseUrl/3/discover/movie?api_key=$_apiKey&language=it-IT'
+          '&sort_by=vote_count.desc&vote_average.gte=7'
+          '&page=$page&include_adult=false')));
+
+      final responses = await Future.wait(futures);
+      final all = <Movies>[];
+
+      for (final res in responses) {
+        if (res.statusCode == 200) {
+          final data = json.decode(res.body);
+          final results = data['results'] as List;
+          for (final e in results) {
+            final m = Movies.fromJson(e);
+            if (!_localMovieIds.contains(m.id)) {
+              all.add(m);
+            }
+          }
+        }
+      }
+
+      all.shuffle(Random());
+      setState(() {
+        _suggested = all.take(20).toList();
+        _loadingSuggested = false;
+      });
+    } catch (e) {
+      print('Errore suggested: $e');
+      setState(() => _loadingSuggested = false);
+    }
+  }
+
   bool get _queryIsYear =>
       RegExp(r'^\d{4}$').hasMatch(_searchController.text.trim());
 
-  // Cerca persona su TMDB — restituisce (id, department) o null
-  // Sostituisci questo metodo
+  bool get _noActiveFilters =>
+      _searchController.text.isEmpty && _selectedGenreId == null;
+
   Future<Map<String, dynamic>?> _searchPerson(String name) async {
     try {
       final res = await http.get(Uri.parse(
-          '$_baseUrl/3/search/person?api_key=$_apiKey&query=${Uri.encodeComponent(name)}&language=it-IT'));
+          '$_baseUrl/3/search/person?api_key=$_apiKey'
+          '&query=${Uri.encodeComponent(name)}&language=it-IT'));
       if (res.statusCode == 200) {
         final data = json.decode(res.body);
         final results = data['results'] as List;
@@ -91,7 +134,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
           final person = results[0];
           return {
             'id': person['id'] as int,
-            'department': person['known_for_department'] as String? ?? 'Acting',
+            'department':
+                person['known_for_department'] as String? ?? 'Acting',
           };
         }
       }
@@ -143,111 +187,61 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
     try {
       final query = _searchController.text.trim();
-      List<Uri> uris = [];
+      Uri uri;
 
       switch (_searchMode) {
         case 'title':
-          // Ricerca per titolo
-          uris = [
-            Uri.parse('$_baseUrl/3/search/movie').replace(
-              queryParameters: {
-                'api_key': _apiKey,
-                'language': 'it-IT',
-                'query': query,
-                'page': '$_currentPage',
-                'include_adult': 'false',
-                if (_selectedGenreId != null)
-                  'with_genres': '$_selectedGenreId',
-              },
-            )
-          ];
+          uri = Uri.parse(
+              '$_baseUrl/3/search/movie?api_key=$_apiKey&language=it-IT'
+              '&query=${Uri.encodeComponent(query)}&page=$_currentPage'
+              '&include_adult=false'
+              '${_selectedGenreId != null ? '&with_genres=$_selectedGenreId' : ''}');
           break;
 
         case 'year':
-          // Discover con anno
-          uris = [
-            Uri.parse('$_baseUrl/3/discover/movie').replace(
-              queryParameters: {
-                'api_key': _apiKey,
-                'language': 'it-IT',
-                'sort_by': 'popularity.desc',
-                'page': '$_currentPage',
-                'include_adult': 'false',
-                'primary_release_year': query,
-                if (_selectedGenreId != null)
-                  'with_genres': '$_selectedGenreId',
-              },
-            )
-          ];
+          uri = Uri.parse(
+              '$_baseUrl/3/discover/movie?api_key=$_apiKey&language=it-IT'
+              '&sort_by=popularity.desc&page=$_currentPage&include_adult=false'
+              '&primary_release_year=$query'
+              '${_selectedGenreId != null ? '&with_genres=$_selectedGenreId' : ''}');
           break;
 
         case 'person':
-          // Discover con persona — cast E crew separati poi merged
           final isActor = _personDepartment == 'Acting';
-          uris = [
-            Uri.parse('$_baseUrl/3/discover/movie').replace(
-              queryParameters: {
-                'api_key': _apiKey,
-                'language': 'it-IT',
-                'sort_by': 'popularity.desc',
-                'page': '$_currentPage',
-                'include_adult': 'false',
-                if (isActor) 'with_cast': '$_personId',
-                if (!isActor) 'with_crew': '$_personId',
-                if (_selectedGenreId != null)
-                  'with_genres': '$_selectedGenreId',
-              },
-            )
-          ];
+          final personParam = isActor
+              ? 'with_cast=$_personId'
+              : 'with_crew=$_personId';
+          uri = Uri.parse(
+              '$_baseUrl/3/discover/movie?api_key=$_apiKey&language=it-IT'
+              '&sort_by=popularity.desc&page=$_currentPage&include_adult=false'
+              '&$personParam'
+              '${_selectedGenreId != null ? '&with_genres=$_selectedGenreId' : ''}');
           break;
 
         default:
-          // Discover generico
-          uris = [
-            Uri.parse('$_baseUrl/3/discover/movie').replace(
-              queryParameters: {
-                'api_key': _apiKey,
-                'language': 'it-IT',
-                'sort_by': 'popularity.desc',
-                'page': '$_currentPage',
-                'include_adult': 'false',
-                if (_selectedGenreId != null)
-                  'with_genres': '$_selectedGenreId',
-              },
-            )
-          ];
+          uri = Uri.parse(
+              '$_baseUrl/3/discover/movie?api_key=$_apiKey&language=it-IT'
+              '&sort_by=popularity.desc&page=$_currentPage&include_adult=false'
+              '${_selectedGenreId != null ? '&with_genres=$_selectedGenreId' : ''}');
       }
 
-      // Esegui tutte le richieste
-      final responses = await Future.wait(uris.map((u) => http.get(u)));
+      final res = await http.get(uri);
 
-      // Merge e deduplicazione per ID
-      final seen = <int>{};
-      final allMovies = <Movies>[];
-      int maxPages = 1;
+      if (res.statusCode == 200) {
+        final data = json.decode(res.body);
+        final results = data['results'] as List;
+        final totalPages = data['total_pages'] as int;
 
-      for (final res in responses) {
-        if (res.statusCode == 200) {
-          final data = json.decode(res.body);
-          final results = data['results'] as List;
-          final totalPages = data['total_pages'] as int;
-          if (totalPages > maxPages) maxPages = totalPages;
-
-          for (final e in results) {
-            final m = Movies.fromJson(e);
-            if (!seen.contains(m.id) && !_localMovieIds.contains(m.id)) {
-              seen.add(m.id);
-              allMovies.add(m);
-            }
-          }
-        }
+        setState(() {
+          final newMovies = results
+              .map((e) => Movies.fromJson(e))
+              .where((m) => !_localMovieIds.contains(m.id))
+              .toList();
+          _movies.addAll(newMovies);
+          _currentPage++;
+          _hasMore = _currentPage <= totalPages;
+        });
       }
-
-      setState(() {
-        _movies.addAll(allMovies);
-        _currentPage++;
-        _hasMore = _currentPage <= maxPages;
-      });
     } catch (e) {
       print('Errore explore: $e');
     }
@@ -262,8 +256,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     });
   }
 
-  // Label sotto la barra di ricerca che mostra la modalità attiva
-  String get _searchHint {
+  String get _searchModeLabel {
     switch (_searchMode) {
       case 'person':
         final role =
@@ -286,8 +279,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
         backgroundColor: Colors.black,
         title: const Text(
           'Esploooora',
-          style:
-              TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style: TextStyle(
+              color: Colors.white, fontWeight: FontWeight.bold),
         ),
       ),
       body: Column(
@@ -295,29 +288,45 @@ class _ExploreScreenState extends State<ExploreScreen> {
           MovieFilters(
             searchController: _searchController,
             selectedGenreId: _selectedGenreId,
+            searchHint: 'Cerca per titolo, attore, regista, anno...',
             onSearchChanged: (_) => _onFilterChanged(),
             onGenreChanged: (val) {
               setState(() => _selectedGenreId = val);
               _onFilterChanged();
             },
           ),
+
           // Label modalità ricerca attiva
-          if (_searchMode != 'discover' &&
-              _searchController.text.isNotEmpty)
+          if (_searchController.text.isNotEmpty &&
+              _searchMode != 'discover')
             Container(
               width: double.infinity,
               color: Colors.grey[900],
               padding:
                   const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
               child: Text(
-                _searchHint,
+                _searchModeLabel,
                 style: const TextStyle(
                     color: Colors.white54,
                     fontSize: 12,
                     fontStyle: FontStyle.italic),
               ),
             ),
-          Expanded(child: _buildGrid()),
+
+          // Suggested (solo quando nessun filtro attivo)
+          if (_noActiveFilters && !_loadingSuggested)
+            SuggestedRow(
+              movies: _suggested,
+              onTap: (movie) => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => MovieDetailScreen(movie: movie)),
+              ),
+            ),
+
+          Expanded(
+            child: _buildGrid()
+          )
         ],
       ),
     );
